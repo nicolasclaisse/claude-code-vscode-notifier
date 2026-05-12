@@ -4,7 +4,9 @@ NOTIFIER="$HOME/Applications/ClaudeNotifier.app/Contents/MacOS/ClaudeNotifier"
 MSG="Claude a terminé"
 
 INPUT=$(cat)
-TRANSCRIPT=$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
+
+# Extraire transcript_path depuis le JSON stdin
+TRANSCRIPT=$(echo "$INPUT" | sed -n 's/.*"transcript_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 
 if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
   # Attendre que le transcript soit flush (max 3s)
@@ -15,39 +17,19 @@ if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
     [ "$LINES_NOW" -gt "$LINES_BEFORE" ] && break
   done
 
-  MSG=$(python3 - "$TRANSCRIPT" <<'EOF'
-import sys, json
+  # Extraire le dernier message texte de l'assistant
+  LAST_TEXT=$(grep '"role"[[:space:]]*:[[:space:]]*"assistant"' "$TRANSCRIPT" \
+    | grep -o '"type"[[:space:]]*:[[:space:]]*"text"[[:space:]]*,[[:space:]]*"text"[[:space:]]*:[[:space:]]*"[^"]*"' \
+    | sed 's/.*"text"[[:space:]]*:[[:space:]]*"//;s/"$//' \
+    | tail -1)
 
-transcript_path = sys.argv[1]
-last_text = ""
-
-with open(transcript_path) as f:
-    for line in f:
-        try:
-            obj = json.loads(line)
-            msg = obj.get('message', {})
-            if msg.get('role') != 'assistant':
-                continue
-            content = msg.get('content', [])
-            texts = [c.get('text', '') for c in content if isinstance(c, dict) and c.get('type') == 'text' and c.get('text','').strip()]
-            if texts:
-                last_text = texts[0]
-        except:
-            pass
-
-if not last_text:
-    print("Claude a terminé")
-    sys.exit()
-
-last_text = last_text.strip()
-safe = last_text.replace('"', "'")
-
-if safe.rstrip().endswith('?'):
-    print(f"Attends ton input - {safe[:80]}")
-else:
-    print(safe[:100])
-EOF
-  )
+  if [ -n "$LAST_TEXT" ]; then
+    if [[ "$LAST_TEXT" =~ \?[[:space:]]*$ ]]; then
+      MSG="Attends ton input - ${LAST_TEXT:0:80}"
+    else
+      MSG="${LAST_TEXT:0:100}"
+    fi
+  fi
 fi
 
 "$NOTIFIER" "Claude Code" "$MSG" 2>/dev/null \
