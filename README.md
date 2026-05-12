@@ -1,68 +1,37 @@
 # claude-code-vscode-notifier
 
-Notifications macOS natives pour [Claude Code](https://claude.ai/code) dans VS Code.
+Notifications macOS pour Claude Code (VS Code) qui affichent **le contenu du dernier message** — pas juste "Task completed".
 
-Affiche le dernier message de Claude en notification à chaque fin de réponse, via le hook `Stop` de Claude Code.
+```
+Claude Code
+"Voici les fichiers modifiés : auth.ts, user.servic…"
+```
 
 ## Prérequis
 
 - macOS
 - Claude Code (extension VS Code)
-- Python 3
-- `jq` : `brew install jq`
+- Xcode Command Line Tools : `xcode-select --install`
 
 ## Installation
 
-### 1. Compiler l'app
-
 ```bash
-swiftc ClaudeNotifier/main.swift -o ClaudeNotifier
-mkdir -p ~/Applications/ClaudeNotifier.app/Contents/MacOS
-cp ClaudeNotifier ~/Applications/ClaudeNotifier.app/Contents/MacOS/
-cp ClaudeNotifier/Info.plist ~/Applications/ClaudeNotifier.app/Contents/
+brew tap nicolasclaisse/tap
+brew install claude-code-vscode-notifier
 ```
 
-### 2. Installer le hook
+Le setup configure automatiquement le hook dans `~/.claude/settings.json`.
 
-```bash
-mkdir -p ~/.claude/hooks
-cp hooks/notify.sh ~/.claude/hooks/notify.sh
-chmod +x ~/.claude/hooks/notify.sh
-```
+## Comment ça marche
 
-### 3. Configurer Claude Code
+À chaque fin de réponse, le hook `Stop` de Claude Code lit le transcript de la session et extrait le dernier message assistant pour l'afficher en notification native macOS. Si le message se termine par une question, la notification est préfixée par "Attends ton input".
 
-Ajouter dans `~/.claude/settings.json` :
-
-```json
-{
-  "hooks": {
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/VOTRE_NOM/.claude/hooks/notify.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-Remplacer `VOTRE_NOM` par votre nom d'utilisateur macOS.
-
-### 4. Autoriser les notifications
-
-Au premier lancement, macOS demandera l'autorisation d'afficher des notifications pour "Claude Code". Accepter.
+Aucune dépendance externe — uniquement bash, sed et grep natifs macOS.
 
 ## Désinstallation
 
 ```bash
-rm -rf ~/Applications/ClaudeNotifier.app
-rm ~/.claude/hooks/notify.sh
+brew uninstall claude-code-vscode-notifier
 ```
 
 Supprimer le bloc `Stop` dans `~/.claude/settings.json`.
